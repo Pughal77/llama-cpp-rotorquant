@@ -28,10 +28,10 @@ GGML_API int turbo3_cpu_wht_group_size = 0;
 #define TURBO_QJL_CONST     1.2533141373155003f  /* sqrt(pi/2) */
 
 /* Optimal centroids from paper (scaled by 1/sqrt(d)) */
-/* 1-bit: ±sqrt(2/(pi*d)) */
+/* 1-bit: +/- sqrt(2/(pi*d)) */
 static const float CENTROIDS_1BIT[2] = { -0.070711f, 0.070711f };  /* for d=128 */
 
-/* 2-bit: {±0.453, ±1.51} / sqrt(d) */
+/* 2-bit: {+/- 0.453, +/- 1.51} / sqrt(d) */
 static const float CENTROIDS_2BIT[4] = { -0.133462f, -0.039994f, 0.039994f, 0.133462f };
 
 /* 3-bit: Lloyd-Max for N(0, 1/128), pre-computed */
@@ -143,7 +143,7 @@ static void turbo_init_qjl(void) {
 /* ---------- helper: matrix-vector multiply ---------- */
 
 static void matvec(const float * M, const float * x, float * y, int d) {
-    /* y = M @ x, M is row-major d×d */
+    /* y = M @ x, M is row-major d x d */
     for (int i = 0; i < d; i++) {
         float sum = 0.0f;
         for (int j = 0; j < d; j++) {
@@ -236,6 +236,31 @@ static void turbo_cpu_fwht(float * x, int group_size) {
     for (int i = 0; i < group_size; i++) x[i] *= inv_sqrt * s2[i];
 }
 
+/* ---------- CPU inverse WHT (in-place, group_size elements) ---------- */
+
+static void turbo_cpu_iwht(float * x, int group_size) {
+    const float * s1 = turbo_cpu_s1;
+    const float * s2 = turbo_cpu_s2;
+    const float inv_sqrt = (group_size == 128) ? 0.08838834764831845f : 0.125f;
+
+    // signs2
+    for (int i = 0; i < group_size; i++) x[i] *= s2[i];
+
+    // butterfly stages
+    for (int h = 1; h < group_size; h *= 2) {
+        for (int i = 0; i < group_size; i += h * 2) {
+            for (int j = i; j < i + h; j++) {
+                float a = x[j], b = x[j + h];
+                x[j]     = a + b;
+                x[j + h] = a - b;
+            }
+        }
+    }
+
+    // normalize + signs1
+    for (int i = 0; i < group_size; i++) x[i] *= inv_sqrt * s1[i];
+}
+
 /* ---------- TURBO3_0: 3-bit PolarQuant with WHT rotation ---------- */
 
 void quantize_row_turbo3_0_ref(const float * GGML_RESTRICT x, block_turbo3_0 * GGML_RESTRICT y, int64_t k) {
@@ -303,16 +328,39 @@ void quantize_row_turbo3_0_ref(const float * GGML_RESTRICT x, block_turbo3_0 * G
 }
 
 void dequantize_row_turbo3_0(const block_turbo3_0 * GGML_RESTRICT x, float * GGML_RESTRICT y, int64_t k) {
-    // Stub — Metal shader handles dequant on GPU.
     assert(k % QK_TURBO3 == 0);
-    const int nb = k / QK_TURBO3;
-    for (int block = 0; block < nb; block++) {
-        float norm = GGML_FP16_TO_FP32(x[block].norm);
-        for (int j = 0; j < QK_TURBO3; j++) {
-            uint8_t low2 = (x[block].qs[j/4] >> ((j%4)*2)) & 0x3;
-            uint8_t hi1 = (x[block].signs[j/8] >> (j%8)) & 0x1;
-            uint8_t idx = low2 | (hi1 << 2);
-            y[block * QK_TURBO3 + j] = CENTROIDS_3BIT[idx] * norm;
+
+    extern int turbo3_cpu_wht_group_size;
+    int group_size = turbo3_cpu_wht_group_size;
+    if (group_size != 64 && group_size != 128) {
+        group_size = (k % 128 == 0) ? 128 : 64;
+    }
+    if (k % group_size != 0) group_size = (group_size == 128) ? 64 : 128;
+    assert(k % group_size == 0);
+
+    const int n_groups = k / group_size;
+    const int blocks_per_group = group_size / QK_TURBO3;
+
+    for (int g = 0; g < n_groups; g++) {
+        const block_turbo3_0 * grp_src = x + g * blocks_per_group;
+        float * grp_dst = y + g * group_size;
+
+        for (int b = 0; b < blocks_per_group; b++) {
+            const block_turbo3_0 * blk = &grp_src[b];
+            const int off = b * QK_TURBO3;
+            for (int j = 0; j < QK_TURBO3; j++) {
+                uint8_t low2 = (blk->qs[j/4] >> ((j%4)*2)) & 0x3;
+                uint8_t hi1 = (blk->signs[j/8] >> (j%8)) & 0x1;
+                uint8_t idx = low2 | (hi1 << 2);
+                grp_dst[off + j] = CENTROIDS_3BIT[idx];
+            }
+        }
+
+        turbo_cpu_iwht(grp_dst, group_size);
+
+        float norm = GGML_FP16_TO_FP32(grp_src[0].norm);
+        for (int j = 0; j < group_size; j++) {
+            grp_dst[j] *= norm;
         }
     }
 }
@@ -395,12 +443,36 @@ void quantize_row_turbo2_0_ref(const float * GGML_RESTRICT x, block_turbo2_0 * G
 
 void dequantize_row_turbo2_0(const block_turbo2_0 * GGML_RESTRICT x, float * GGML_RESTRICT y, int64_t k) {
     assert(k % QK_TURBO2 == 0);
-    const int nb = k / QK_TURBO2;
-    for (int block = 0; block < nb; block++) {
-        float norm = GGML_FP16_TO_FP32(x[block].norm);
-        for (int j = 0; j < QK_TURBO2; j++) {
-            uint8_t idx = (x[block].qs[j/4] >> ((j%4)*2)) & 0x3;
-            y[block * QK_TURBO2 + j] = CENTROIDS_2BIT[idx] * norm;
+
+    extern int turbo3_cpu_wht_group_size;
+    int group_size = turbo3_cpu_wht_group_size;
+    if (group_size != 64 && group_size != 128) {
+        group_size = (k % 128 == 0) ? 128 : 64;
+    }
+    if (k % group_size != 0) group_size = (group_size == 128) ? 64 : 128;
+    assert(k % group_size == 0);
+
+    const int n_groups = k / group_size;
+    const int blocks_per_group = group_size / QK_TURBO2;
+
+    for (int g = 0; g < n_groups; g++) {
+        const block_turbo2_0 * grp_src = x + g * blocks_per_group;
+        float * grp_dst = y + g * group_size;
+
+        for (int b = 0; b < blocks_per_group; b++) {
+            const block_turbo2_0 * blk = &grp_src[b];
+            const int off = b * QK_TURBO2;
+            for (int j = 0; j < QK_TURBO2; j++) {
+                uint8_t idx = (blk->qs[j/4] >> ((j%4)*2)) & 0x3;
+                grp_dst[off + j] = CENTROIDS_2BIT[idx];
+            }
+        }
+
+        turbo_cpu_iwht(grp_dst, group_size);
+
+        float norm = GGML_FP16_TO_FP32(grp_src[0].norm);
+        for (int j = 0; j < group_size; j++) {
+            grp_dst[j] *= norm;
         }
     }
 }
@@ -541,7 +613,7 @@ void dequantize_row_turbo4_0(const block_turbo4_0 * GGML_RESTRICT x, float * GGM
     const int d  = QK_TURBO4;
 
 #if TURBO4_USE_4BIT
-    /* 4-bit PolarQuant: nibble unpack → centroid → inverse rotate → scale */
+    /* 4-bit PolarQuant: nibble unpack -> centroid -> inverse rotate -> scale */
     /* TODO: add proper 4-bit centroid table to C code (currently only in Metal) */
     static const float CENTROIDS_4BIT[16] = {
         -0.173926f, -0.117195f, -0.089527f, -0.068756f,
