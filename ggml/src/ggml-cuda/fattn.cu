@@ -410,6 +410,17 @@ static void ggml_cuda_flash_attn_ext_mma_f16(ggml_backend_cuda_context & ctx, gg
                 ggml_cuda_flash_attn_ext_mma_f16_switch_ncols1<576, 512,  4>(ctx, dst);
             }
         } break;
+        case 640: {
+            // Padded turbo KV cache for GLM-4.7 Flash (K head_dim=576 zero-padded to 640).
+            // D=640 shared memory (Q storage = ncols*(DKQ/2+4)*4) exceeds hardware limit at ncols1>=4.
+            // Cap at ncols1=2 (ncols=32): Q=32*324*4=41KB + KV~37KB = ~78KB total.
+            GGML_ASSERT(V->ne[0] == 512);
+            if (Q->ne[1] <= 1) {
+                ggml_cuda_flash_attn_ext_mma_f16_case<640, 512, 1, 16>(ctx, dst);
+            } else {
+                ggml_cuda_flash_attn_ext_mma_f16_case<640, 512, 2, 16>(ctx, dst);
+            }
+        } break;
         default:
             GGML_ABORT("fatal error");
     }
@@ -428,6 +439,16 @@ static void ggml_cuda_flash_attn_ext_mma_f16(ggml_backend_cuda_context & ctx, gg
     FATTN_VEC_CASE( 64, type_K_case, type_V_case)       \
     FATTN_VEC_CASE(128, type_K_case, type_V_case)       \
     FATTN_VEC_CASE(256, type_K_case, type_V_case)       \
+
+#define FATTN_VEC_CASE_CUSTOM(D, type_K_case, type_V_case) \
+    if (head_size == (D) && type_K == (type_K_case) && type_V == (type_V_case)) { \
+        return ggml_cuda_flash_attn_ext_vec_case<D, type_K_case, type_V_case>; \
+    }
+
+#define FATTN_VEC_CASES_ALL_D_CUSTOM(type_K_case, type_V_case) \
+    FATTN_VEC_CASE_CUSTOM( 64, type_K_case, type_V_case)       \
+    FATTN_VEC_CASE_CUSTOM(128, type_K_case, type_V_case)       \
+    FATTN_VEC_CASE_CUSTOM(256, type_K_case, type_V_case)
 
 typedef void (* fattn_vec_case_t)(ggml_backend_cuda_context & ctx, ggml_tensor * dst);
 
@@ -489,13 +510,95 @@ static fattn_vec_case_t ggml_cuda_get_fattn_vec_case(const int64_t head_size, co
     FATTN_VEC_CASES_ALL_D(Q8_0, BF16)
     FATTN_VEC_CASES_ALL_D(BF16, BF16)
 
+    // TurboQuant3 KV cache types
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_TURBO3_0, GGML_TYPE_TURBO3_0)
+
+    // Mixed turbo3/q8_0 KV cache types
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_TURBO3_0, GGML_TYPE_Q8_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_Q8_0,     GGML_TYPE_TURBO3_0)
+
+    // TurboQuant2 KV cache types
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_TURBO2_0, GGML_TYPE_TURBO2_0)
+
+    // Mixed turbo2/q8_0 KV cache types
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_TURBO2_0, GGML_TYPE_Q8_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_Q8_0,     GGML_TYPE_TURBO2_0)
+
+    // Mixed turbo3/turbo2 KV cache types
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_TURBO3_0, GGML_TYPE_TURBO2_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_TURBO2_0, GGML_TYPE_TURBO3_0)
+
+    // TurboQuant4 KV cache types
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_TURBO4_0, GGML_TYPE_TURBO4_0)
+
+    // Mixed turbo4/q8_0 KV cache types
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_TURBO4_0, GGML_TYPE_Q8_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_Q8_0,     GGML_TYPE_TURBO4_0)
+
+    // Mixed turbo4/turbo3 KV cache types
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_TURBO4_0, GGML_TYPE_TURBO3_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_TURBO3_0, GGML_TYPE_TURBO4_0)
+
+    // Mixed turbo4/turbo2 KV cache types
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_TURBO4_0, GGML_TYPE_TURBO2_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_TURBO2_0, GGML_TYPE_TURBO4_0)
+
+    // PlanarQuant/IsoQuant K with F16 V (deferred quantization)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_PLANAR3_0, GGML_TYPE_F16)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_ISO3_0,    GGML_TYPE_F16)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_PLANAR4_0, GGML_TYPE_F16)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_ISO4_0,    GGML_TYPE_F16)
+
+    // F16 K + various V (needed during deferred prefill when K=planar3/iso3 is still F16)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_F16,       GGML_TYPE_TURBO3_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_F16,       GGML_TYPE_TURBO4_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_F16,       GGML_TYPE_PLANAR3_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_F16,       GGML_TYPE_ISO3_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_F16,       GGML_TYPE_PLANAR4_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_F16,       GGML_TYPE_ISO4_0)
+
+    // Asymmetric: q8_0 K + iso/planar V
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_Q8_0,      GGML_TYPE_PLANAR3_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_Q8_0,      GGML_TYPE_ISO3_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_Q8_0,      GGML_TYPE_PLANAR4_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_Q8_0,      GGML_TYPE_ISO4_0)
+
+    // Asymmetric: iso/planar K + q8_0 V
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_PLANAR3_0, GGML_TYPE_Q8_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_PLANAR4_0, GGML_TYPE_Q8_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_ISO3_0,    GGML_TYPE_Q8_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_ISO4_0,    GGML_TYPE_Q8_0)
+
+    // Asymmetric: iso/planar K + turbo V
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_PLANAR3_0, GGML_TYPE_TURBO3_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_PLANAR3_0, GGML_TYPE_TURBO4_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_ISO3_0,    GGML_TYPE_TURBO3_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_ISO3_0,    GGML_TYPE_TURBO4_0)
+
+    // Symmetric: same type K and V
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_PLANAR3_0, GGML_TYPE_PLANAR3_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_ISO3_0,    GGML_TYPE_ISO3_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_PLANAR4_0, GGML_TYPE_PLANAR4_0)
+    FATTN_VEC_CASES_ALL_D_CUSTOM(GGML_TYPE_ISO4_0,    GGML_TYPE_ISO4_0)
+
     return nullptr;
 }
+
+// Forward declaration for constant initialization
+extern void ggml_cuda_init_planar_iso_constants();
 
 static void ggml_cuda_flash_attn_ext_vec(ggml_backend_cuda_context & ctx, ggml_tensor * dst) {
     const ggml_tensor * Q = dst->src[0];
     const ggml_tensor * K = dst->src[1];
     const ggml_tensor * V = dst->src[2];
+
+    // Initialize rotation constants for planar/iso types (needed for K or V dequant)
+    if (K->type == GGML_TYPE_PLANAR3_0 || K->type == GGML_TYPE_ISO3_0 ||
+        K->type == GGML_TYPE_PLANAR4_0 || K->type == GGML_TYPE_ISO4_0 ||
+        V->type == GGML_TYPE_PLANAR3_0 || V->type == GGML_TYPE_ISO3_0 ||
+        V->type == GGML_TYPE_PLANAR4_0 || V->type == GGML_TYPE_ISO4_0) {
+        ggml_cuda_init_planar_iso_constants();
+    }
 
     fattn_vec_case_t vec_case = ggml_cuda_get_fattn_vec_case(Q->ne[0], K->type, V->type);
     if (vec_case == nullptr) {
@@ -531,6 +634,13 @@ static bool ggml_cuda_fattn_kv_type_supported(const ggml_type type) {
         case GGML_TYPE_Q5_0:
         case GGML_TYPE_Q5_1:
         case GGML_TYPE_Q8_0:
+        case GGML_TYPE_TURBO2_0:
+        case GGML_TYPE_TURBO3_0:
+        case GGML_TYPE_TURBO4_0:
+        case GGML_TYPE_PLANAR3_0:
+        case GGML_TYPE_ISO3_0:
+        case GGML_TYPE_PLANAR4_0:
+        case GGML_TYPE_ISO4_0:
             return true;
         default:
             return false;
@@ -610,6 +720,7 @@ static best_fattn_kernel ggml_cuda_get_best_fattn_kernel(const int device, const
             }
             break;
         case 576:
+        case 640:
             if (V->ne[0] != 512) {
                 return BEST_FATTN_KERNEL_NONE;
             }
@@ -625,6 +736,15 @@ static best_fattn_kernel ggml_cuda_get_best_fattn_kernel(const int device, const
         return BEST_FATTN_KERNEL_NONE;
     }
 
+    auto is_custom_kv = [](ggml_type t) {
+        return t == GGML_TYPE_TURBO2_0 || t == GGML_TYPE_TURBO3_0 || t == GGML_TYPE_TURBO4_0 ||
+               t == GGML_TYPE_PLANAR3_0 || t == GGML_TYPE_ISO3_0 ||
+               t == GGML_TYPE_PLANAR4_0 || t == GGML_TYPE_ISO4_0;
+    };
+    if (is_custom_kv(K->type) && K->ne[0] % 64 != 0) {
+        return BEST_FATTN_KERNEL_NONE;
+    }
+
     if (mask && mask->ne[2] != 1) {
         return BEST_FATTN_KERNEL_NONE;
     }
@@ -632,6 +752,16 @@ static best_fattn_kernel ggml_cuda_get_best_fattn_kernel(const int device, const
     // For small batch sizes the vector kernel may be preferable over the kernels optimized for large batch sizes:
     // 192 satisfies % 64 == 0 but has no vec instance (DKQ != DV); force it onto the MMA path.
     const bool can_use_vector_kernel = Q->ne[0] <= 256 && Q->ne[0] % 64 == 0 && Q->ne[0] != 192 && K->ne[1] % FATTN_KQ_STRIDE == 0;
+
+    // PlanarQuant/IsoQuant: force VEC kernel (only implementation available).
+    // Check both K and V - asymmetric configs like q8_0 K + iso3 V also need VEC.
+    auto is_planar_iso = [](ggml_type t) {
+        return t == GGML_TYPE_PLANAR3_0 || t == GGML_TYPE_ISO3_0 ||
+               t == GGML_TYPE_PLANAR4_0 || t == GGML_TYPE_ISO4_0;
+    };
+    if (is_planar_iso(K->type) || is_planar_iso(V->type)) {
+        return BEST_FATTN_KERNEL_VEC;
+    }
 
     // If Turing tensor cores are available, use them:
     if (turing_mma_available(cc) && Q->ne[0] != 40 && Q->ne[0] != 72) {
@@ -663,7 +793,7 @@ static best_fattn_kernel ggml_cuda_get_best_fattn_kernel(const int device, const
         return BEST_FATTN_KERNEL_MMA_F16;
     }
 
-    const int ncols2_max = Q->ne[0] == 320 ? 32 : ((Q->ne[0] == 576 || Q->ne[0] == 192) ? 16 : 8);
+    const int ncols2_max = Q->ne[0] == 320 ? 32 : ((Q->ne[0] == 576 || Q->ne[0] == 640 || Q->ne[0] == 192) ? 16 : 8);
     int gqa_ratio_eff = 1;
     while (max_bias == 0.0f && gqa_ratio % (2*gqa_ratio_eff) == 0 && gqa_ratio_eff < ncols2_max) {
         gqa_ratio_eff *= 2;
