@@ -1634,6 +1634,20 @@ ggml_metal_pipeline_with_params ggml_metal_library_get_pipeline_fwht(ggml_metal_
     return res;
 }
 
+ggml_metal_pipeline_with_params ggml_metal_library_get_pipeline_turbo_wht(ggml_metal_library_t lib) {
+    const char * name = "kernel_turbo_wht";
+
+    ggml_metal_pipeline_with_params res = ggml_metal_library_get_pipeline(lib, name);
+    if (!res.pipeline) {
+        res = ggml_metal_library_compile_pipeline(lib, name, name, nullptr);
+    }
+
+    res.nsg = 1;
+    res.smem = 0;
+
+    return res;
+}
+
 // note: reuse the argsort kernel for the bitonic top_k fallback
 ggml_metal_pipeline_with_params ggml_metal_library_get_pipeline_top_k(ggml_metal_library_t lib, const ggml_tensor * op) {
     assert(op->op == GGML_OP_TOP_K);
@@ -1886,6 +1900,21 @@ ggml_metal_pipeline_with_params ggml_metal_library_get_pipeline_flash_attn_ext_t
     return res;
 }
 
+static bool is_turbo_or_custom_type(enum ggml_type t) {
+    switch (t) {
+        case GGML_TYPE_TURBO2_0:
+        case GGML_TYPE_TURBO3_0:
+        case GGML_TYPE_TURBO4_0:
+        case GGML_TYPE_PLANAR3_0:
+        case GGML_TYPE_PLANAR4_0:
+        case GGML_TYPE_ISO3_0:
+        case GGML_TYPE_ISO4_0:
+            return true;
+        default:
+            return false;
+    }
+}
+
 ggml_metal_pipeline_with_params ggml_metal_library_get_pipeline_flash_attn_ext(
         ggml_metal_library_t lib,
         const ggml_tensor * op,
@@ -1911,11 +1940,25 @@ ggml_metal_pipeline_with_params ggml_metal_library_get_pipeline_flash_attn_ext(
     // do bounds checks for the mask?
     const bool bc_mask = op->src[3] && (op->src[3]->ne[1] % 8 != 0);
 
-    snprintf(base, 256, "kernel_%s_%s_dk%d_dv%d",
-            "flash_attn_ext",
-            type,
-            dk,
-            dv);
+    const bool is_asym_or_custom = (op->src[1]->type != op->src[2]->type) ||
+        is_turbo_or_custom_type(op->src[1]->type) ||
+        is_turbo_or_custom_type(op->src[2]->type);
+
+    if (is_asym_or_custom) {
+        const char * type_k = use_kv_f16 ? "f16" : ggml_type_name(op->src[1]->type);
+        const char * type_v = use_kv_f16 ? "f16" : ggml_type_name(op->src[2]->type);
+        snprintf(base, 256, "kernel_flash_attn_ext_k%s_v%s_dk%d_dv%d",
+                type_k,
+                type_v,
+                dk,
+                dv);
+    } else {
+        snprintf(base, 256, "kernel_%s_%s_dk%d_dv%d",
+                "flash_attn_ext",
+                type,
+                dk,
+                dv);
+    }
 
     snprintf(name, 256, "%s_mask=%d_sinks=%d_bias=%d_scap=%d_kvpad=%d_bcm=%d_ns10=%d_ns20=%d_nsg=%d",
             base,
@@ -2004,12 +2047,27 @@ ggml_metal_pipeline_with_params ggml_metal_library_get_pipeline_flash_attn_ext_v
         snprintf(qne_suffix, sizeof(qne_suffix), "_q%d_ne%d", nqpsg, ne);
     }
 
-    snprintf(base, 256, "kernel_%s_%s_dk%d_dv%d%s",
-            "flash_attn_ext_vec",
-            type,
-            dk,
-            dv,
-            qne_suffix);
+    const bool is_asym_or_custom = (op->src[1]->type != op->src[2]->type) ||
+        is_turbo_or_custom_type(op->src[1]->type) ||
+        is_turbo_or_custom_type(op->src[2]->type);
+
+    if (is_asym_or_custom) {
+        const char * type_k = use_kv_f16 ? "f16" : ggml_type_name(op->src[1]->type);
+        const char * type_v = use_kv_f16 ? "f16" : ggml_type_name(op->src[2]->type);
+        snprintf(base, 256, "kernel_flash_attn_ext_vec_k%s_v%s_dk%d_dv%d%s",
+                type_k,
+                type_v,
+                dk,
+                dv,
+                qne_suffix);
+    } else {
+        snprintf(base, 256, "kernel_%s_%s_dk%d_dv%d%s",
+                "flash_attn_ext_vec",
+                type,
+                dk,
+                dv,
+                qne_suffix);
+    }
 
     snprintf(name, 256, "%s_mask=%d_sink=%d_bias=%d_scap=%d_kvpad=%d_sparse=%d_ns10=%d_ns20=%d_nsg=%d_nwg=%d",
             base,

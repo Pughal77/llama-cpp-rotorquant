@@ -118,6 +118,7 @@ int ggml_metal_pipeline_max_theads_per_threadgroup(struct ggml_metal_pipeline_wi
     X(FA_Q5_0,         fa_q5_0)        \
     X(FA_Q5_1,         fa_q5_1)        \
     X(FA_Q8_0,         fa_q8_0)        \
+    X(FA_TURBO,        fa_turbo)       \
     X(FA_VEC_F16,      fa_vec_f16)     \
     X(FA_VEC_F32,      fa_vec_f32)     \
     X(FA_VEC_Q4_0,     fa_vec_q4_0)    \
@@ -125,6 +126,7 @@ int ggml_metal_pipeline_max_theads_per_threadgroup(struct ggml_metal_pipeline_wi
     X(FA_VEC_Q5_0,     fa_vec_q5_0)    \
     X(FA_VEC_Q5_1,     fa_vec_q5_1)    \
     X(FA_VEC_Q8_0,     fa_vec_q8_0)    \
+    X(FA_VEC_TURBO,    fa_vec_turbo)   \
     X(MUL_MV,          mul_mv)         \
     X(MUL_MV_MMA,      mul_mv_mma)     \
     X(MUL_MM,          mul_mm)         \
@@ -144,7 +146,8 @@ int ggml_metal_pipeline_max_theads_per_threadgroup(struct ggml_metal_pipeline_wi
     X(UPSCALE,         upscale)        \
     X(ARGSORT,         argsort)        \
     X(POOL,            pool)           \
-    X(MISC,            misc)
+    X(MISC,            misc)           \
+    X(TURBO_WHT,       turbo_wht)
 
 enum ggml_metal_lib_kind {
 #define X(e, s) GGML_METAL_LIB_##e,
@@ -463,6 +466,18 @@ ggml_metal_library_t ggml_metal_library_init(ggml_metal_device_t dev) {
 #if GGML_METAL_EMBED_LIBRARY
     [prep setObject:@"1" forKey:@"GGML_METAL_EMBED_LIBRARY"];
 #endif
+    const char * env_4mag = getenv("TURBO_USE_4MAG");
+    if (env_4mag && env_4mag[0] == '1') {
+        [prep setObject:@"1" forKey:@"TURBO_USE_4MAG"];
+    }
+    const char * env_sparse_v = getenv("TURBO_SPARSE_V");
+    if (env_sparse_v && env_sparse_v[0] == '1') {
+        [prep setObject:@"1" forKey:@"TURBO_SPARSE_V"];
+    }
+    const char * env_profile = getenv("TURBO_PROFILE_MODE");
+    if (env_profile && env_profile[0] == '1') {
+        [prep setObject:@"1" forKey:@"TURBO_PROFILE_MODE"];
+    }
 
 #if GGML_METAL_EMBED_LIBRARY
     GGML_LOG_INFO("%s: using embedded metal library\n", __func__);
@@ -1751,24 +1766,56 @@ bool ggml_metal_device_supports_op(ggml_metal_device_t dev, const struct ggml_te
                 return false;
             }
             if (op->src[1]->type != op->src[2]->type) {
-                return false;
-            }
-            switch (op->src[1]->type) {
-                case GGML_TYPE_F32:
-                case GGML_TYPE_F16:
-                case GGML_TYPE_Q8_0:
-                case GGML_TYPE_Q4_0:
-                case GGML_TYPE_Q4_1:
-                case GGML_TYPE_Q5_0:
-                case GGML_TYPE_Q5_1:
-                    break;
-                case GGML_TYPE_BF16:
-                    if (!has_bfloat) {
-                        return false;
-                    }
-                    break;
-                default:
+                // Allow asymmetric K/V for supported mixed pairs:
+                // - turbo x turbo (any combination)
+                // - q8_0 x turbo (either direction)
+                const bool k_is_turbo = (op->src[1]->type == GGML_TYPE_TURBO2_0 ||
+                                         op->src[1]->type == GGML_TYPE_TURBO3_0 ||
+                                         op->src[1]->type == GGML_TYPE_TURBO4_0 ||
+                                         op->src[1]->type == GGML_TYPE_PLANAR3_0 ||
+                                         op->src[1]->type == GGML_TYPE_ISO3_0 ||
+                                         op->src[1]->type == GGML_TYPE_PLANAR4_0 ||
+                                         op->src[1]->type == GGML_TYPE_ISO4_0);
+                const bool v_is_turbo = (op->src[2]->type == GGML_TYPE_TURBO2_0 ||
+                                         op->src[2]->type == GGML_TYPE_TURBO3_0 ||
+                                         op->src[2]->type == GGML_TYPE_TURBO4_0 ||
+                                         op->src[2]->type == GGML_TYPE_PLANAR3_0 ||
+                                         op->src[2]->type == GGML_TYPE_ISO3_0 ||
+                                         op->src[2]->type == GGML_TYPE_PLANAR4_0 ||
+                                         op->src[2]->type == GGML_TYPE_ISO4_0);
+                const bool k_is_q8 = (op->src[1]->type == GGML_TYPE_Q8_0);
+                const bool v_is_q8 = (op->src[2]->type == GGML_TYPE_Q8_0);
+                const bool supported = (k_is_turbo && v_is_turbo) ||
+                                       (k_is_q8 && v_is_turbo) ||
+                                       (k_is_turbo && v_is_q8);
+                if (!supported) {
                     return false;
+                }
+            } else {
+                switch (op->src[1]->type) {
+                    case GGML_TYPE_F32:
+                    case GGML_TYPE_F16:
+                    case GGML_TYPE_Q8_0:
+                    case GGML_TYPE_Q4_0:
+                    case GGML_TYPE_Q4_1:
+                    case GGML_TYPE_Q5_0:
+                    case GGML_TYPE_Q5_1:
+                    case GGML_TYPE_TURBO2_0:
+                    case GGML_TYPE_TURBO3_0:
+                    case GGML_TYPE_TURBO4_0:
+                    case GGML_TYPE_PLANAR3_0:
+                    case GGML_TYPE_ISO3_0:
+                    case GGML_TYPE_PLANAR4_0:
+                    case GGML_TYPE_ISO4_0:
+                        break;
+                    case GGML_TYPE_BF16:
+                        if (!has_bfloat) {
+                            return false;
+                        }
+                        break;
+                    default:
+                        return false;
+                }
             }
             return has_simdgroup_mm; // TODO: over-restricted for vec-kernels
         case GGML_OP_LIGHTNING_INDEXER:
@@ -1842,6 +1889,8 @@ bool ggml_metal_device_supports_op(ggml_metal_device_t dev, const struct ggml_te
             return true;
         case GGML_OP_GATED_DELTA_NET:
             return has_simdgroup_reduction && op->src[2]->ne[0] % 32 == 0;
+        case GGML_OP_TURBO_WHT:
+            return op->src[0]->ne[0] % 128 == 0;
         case GGML_OP_SOLVE_TRI:
             return has_simdgroup_reduction && op->src[0]->type == GGML_TYPE_F32;
         case GGML_OP_MUL_MAT:
@@ -1944,6 +1993,13 @@ bool ggml_metal_device_supports_op(ggml_metal_device_t dev, const struct ggml_te
                     case GGML_TYPE_Q5_1:
                     case GGML_TYPE_IQ4_NL:
                     case GGML_TYPE_TQ2_0:
+                    case GGML_TYPE_TURBO2_0:
+                    case GGML_TYPE_TURBO3_0:
+                    case GGML_TYPE_TURBO4_0:
+                    case GGML_TYPE_PLANAR3_0:
+                    case GGML_TYPE_ISO3_0:
+                    case GGML_TYPE_PLANAR4_0:
+                    case GGML_TYPE_ISO4_0:
                         return true;
                     default:
                         return false;

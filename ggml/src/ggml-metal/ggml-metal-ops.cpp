@@ -516,6 +516,10 @@ static int ggml_metal_op_encode_impl(ggml_metal_op_t ctx, int idx) {
             {
                 n_fuse = ggml_metal_op_count_equal(ctx, idx);
             } break;
+        case GGML_OP_TURBO_WHT:
+            {
+                n_fuse = ggml_metal_op_turbo_wht(ctx, idx);
+            } break;
         default:
             {
                 GGML_LOG_ERROR("%s: error: node %3d, op = %8s not implemented\n", __func__, idx, ggml_op_name(node->op));
@@ -2374,6 +2378,38 @@ int ggml_metal_op_fwht(ggml_metal_op_t ctx, int idx) {
     return 1;
 }
 
+int ggml_metal_op_turbo_wht(ggml_metal_op_t ctx, int idx) {
+    ggml_tensor * op = ctx->node(idx);
+
+    ggml_metal_library_t lib = ctx->lib;
+    ggml_metal_encoder_t enc = ctx->enc;
+
+    int direction;
+    memcpy(&direction, op->op_params, sizeof(int));
+
+    const int64_t n_elements = ggml_nelements(op->src[0]);
+    const int64_t n_groups = n_elements / 128;
+
+    auto pipeline = ggml_metal_library_get_pipeline_turbo_wht(lib);
+
+    ggml_metal_kargs_turbo_wht args = {
+        /*.n_elements =*/ n_elements,
+        /*.direction  =*/ direction,
+    };
+
+    int ida = 0;
+    ggml_metal_encoder_set_pipeline(enc, pipeline);
+    ggml_metal_encoder_set_bytes   (enc, &args, sizeof(args), ida++);
+    ggml_metal_encoder_set_buffer  (enc, ggml_metal_get_buffer_id(op->src[0]), ida++);
+    ggml_metal_encoder_set_buffer  (enc, ggml_metal_get_buffer_id(op),         ida++);
+
+    const int threads_per_tg = 256;
+    const int n_threadgroups = (n_groups + threads_per_tg - 1) / threads_per_tg;
+    ggml_metal_encoder_dispatch_threadgroups(enc, n_threadgroups, 1, 1, threads_per_tg, 1, 1);
+
+    return 1;
+}
+
 int ggml_metal_op_pool_2d(ggml_metal_op_t ctx, int idx) {
     ggml_tensor * op = ctx->node(idx);
 
@@ -3097,6 +3133,16 @@ bool ggml_metal_op_flash_attn_ext_use_vec(const ggml_tensor * op) {
     const int64_t ne00 = op->src[0]->ne[0]; // head size
     const int64_t ne01 = op->src[0]->ne[1]; // batch size
 
+    const ggml_type ktype = op->src[1]->type;
+    if (ktype == GGML_TYPE_TURBO2_0 || ktype == GGML_TYPE_TURBO3_0 || ktype == GGML_TYPE_TURBO4_0 ||
+        ktype == GGML_TYPE_PLANAR3_0 || ktype == GGML_TYPE_ISO3_0 ||
+        ktype == GGML_TYPE_PLANAR4_0 || ktype == GGML_TYPE_ISO4_0) {
+        const char * force_nonvec = getenv("TURBO_FORCE_NONVEC");
+        if (force_nonvec && force_nonvec[0] == '1') {
+            return false;
+        }
+    }
+
     // use vec kernel if the batch size is small and if the head size is supported
     return (ne01 < 20) && (ne00 % 32 == 0);
 }
@@ -3439,7 +3485,25 @@ int ggml_metal_op_flash_attn_ext(ggml_metal_op_t ctx, int idx) {
     GGML_ASSERT(ne00 % 4 == 0);
 
     GGML_ASSERT(op->src[0]->type == GGML_TYPE_F32);
-    GGML_ASSERT(op->src[1]->type == op->src[2]->type);
+    // Allow asymmetric K/V quantization for supported mixed pairs
+    {
+        const ggml_type type_k = op->src[1]->type;
+        const ggml_type type_v = op->src[2]->type;
+        if (type_k != type_v) {
+            const bool k_is_turbo = (type_k == GGML_TYPE_TURBO2_0 || type_k == GGML_TYPE_TURBO3_0 || type_k == GGML_TYPE_TURBO4_0 ||
+                                     type_k == GGML_TYPE_PLANAR3_0 || type_k == GGML_TYPE_ISO3_0 ||
+                                     type_k == GGML_TYPE_PLANAR4_0 || type_k == GGML_TYPE_ISO4_0);
+            const bool v_is_turbo = (type_v == GGML_TYPE_TURBO2_0 || type_v == GGML_TYPE_TURBO3_0 || type_v == GGML_TYPE_TURBO4_0 ||
+                                     type_v == GGML_TYPE_PLANAR3_0 || type_v == GGML_TYPE_ISO3_0 ||
+                                     type_v == GGML_TYPE_PLANAR4_0 || type_v == GGML_TYPE_ISO4_0);
+            const bool k_is_q8 = (type_k == GGML_TYPE_Q8_0);
+            const bool v_is_q8 = (type_v == GGML_TYPE_Q8_0);
+            const bool supported = (k_is_turbo && v_is_turbo) ||
+                                   (k_is_q8 && v_is_turbo) ||
+                                   (k_is_turbo && v_is_q8);
+            GGML_ASSERT(supported && "asymmetric K/V types only supported for turbo and q8_0 mixed pairs");
+        }
+    }
 
     //GGML_ASSERT(ggml_are_same_shape (src1, src2));
     GGML_ASSERT(ne11 == ne21);
@@ -3967,7 +4031,14 @@ int ggml_metal_op_flash_attn_ext(ggml_metal_op_t ctx, int idx) {
 
         auto fa_vec_smem = [&](int64_t nsg, int32_t nqptg) -> size_t {
             const size_t smem_half = (size_t) (dk_pad + 4*ncpsg + 2*dv_pad)*nqptg*nsg;
-            return GGML_PAD(smem_half*sizeof(ggml_fp16_t) + (use_sparse ? (size_t) nsg*ncpsg*sizeof(int) : 0), 16);
+            const bool is_turbo_kv = (
+                op->src[1]->type == GGML_TYPE_TURBO2_0 || op->src[1]->type == GGML_TYPE_TURBO3_0 || op->src[1]->type == GGML_TYPE_TURBO4_0 ||
+                op->src[1]->type == GGML_TYPE_PLANAR3_0 || op->src[1]->type == GGML_TYPE_ISO3_0 ||
+                op->src[1]->type == GGML_TYPE_PLANAR4_0 || op->src[1]->type == GGML_TYPE_ISO4_0 ||
+                op->src[2]->type == GGML_TYPE_TURBO2_0 || op->src[2]->type == GGML_TYPE_TURBO3_0 || op->src[2]->type == GGML_TYPE_TURBO4_0 ||
+                op->src[2]->type == GGML_TYPE_PLANAR3_0 || op->src[2]->type == GGML_TYPE_ISO3_0 ||
+                op->src[2]->type == GGML_TYPE_PLANAR4_0 || op->src[2]->type == GGML_TYPE_ISO4_0);
+            return GGML_PAD(smem_half*sizeof(ggml_fp16_t) + (use_sparse ? (size_t) nsg*ncpsg*sizeof(int) : 0) + (is_turbo_kv ? 512 : 0), 16);
         };
 
         int64_t nsg = 1;

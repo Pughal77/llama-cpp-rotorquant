@@ -124,6 +124,7 @@
 #define FC_FLASH_ATTN_EXT_TENSOR       2200
 #define FC_LIGHTNING_INDEXER           2200
 #define FC_MUL_MV_MMA                  2300
+#define FC_TURBO_WHT                   2400
 
 // op-specific constants
 #define OP_FLASH_ATTN_EXT_NQPSG 8
@@ -1394,5 +1395,10 @@ typedef struct {
 typedef struct {
     int64_t ne;
 } ggml_metal_kargs_silu_back;
+
+typedef struct {
+    int64_t n_elements;
+    int32_t direction;
+} ggml_metal_kargs_turbo_wht;
 
 #endif // GGML_METAL_IMPL

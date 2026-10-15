@@ -12,6 +12,25 @@ __embed_ggml-common.h__
 
 #define QK_NL 16 // shared by mul_mm and get_rows_q instantiations
 
+#include "turbo-wht.h"
+#include "turbo-quant.h"
+#include "planar-iso-constants.h"
+
+#define NL_TURBO3     (QK_TURBO3 / 16)
+#define NL_TURBO3_VEC (QK_TURBO3 / 4)
+#define NL_TURBO2     (QK_TURBO2 / 16)
+#define NL_TURBO2_VEC (QK_TURBO2 / 4)
+#define NL_TURBO4     8
+#define NL_TURBO4_VEC 32
+#define NL_PLANAR3     (QK_PLANAR3 / 16)
+#define NL_PLANAR3_VEC (QK_PLANAR3 / 4)
+#define NL_PLANAR4     8
+#define NL_PLANAR4_VEC 32
+#define NL_ISO3        (QK_ISO3 / 16)
+#define NL_ISO3_VEC    (QK_ISO3 / 4)
+#define NL_ISO4        8
+#define NL_ISO4_VEC    32
+
 // NOTE: this is not dequantizing - we are simply fitting the template
 template <typename type4x4>
 void dequantize_f32(device const float4x4 * src, short il, thread type4x4 & reg) {
