@@ -55,7 +55,11 @@ void ggml_cuda_flash_attn_ext_tile(ggml_backend_cuda_context & ctx, ggml_tensor 
         } break;
         case 640: {
             GGML_ASSERT(V->ne[0] == 512);
+#if !defined(GGML_USE_HIP)
             ggml_cuda_flash_attn_ext_tile_case<640, 512>(ctx, dst);
+#else
+            GGML_ABORT("flash-attn tile (640/512): not supported on HIP due to LDS limits");
+#endif
         } break;
         default:
             GGML_ABORT("Unsupported head size");

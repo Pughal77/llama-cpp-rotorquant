@@ -41,11 +41,10 @@ std::string common_chat_template_generation_prompt_impl(
 
 bool is_lfm2_template(const std::string & src);
 
-namespace workaround {
+bool is_inkling2_template(const std::string & src);
 
-void convert_tool_responses_gemma4(json & messages);
-
-}
+// give each media marker of a text block its own message block
+void common_chat_inkling2_split_media(common_chat_prompt & prompt);
 
 common_chat_params common_chat_params_init_cohere2moe(const common_chat_template & tmpl, const autoparser::generation_params & inputs);
 
@@ -58,6 +57,8 @@ common_chat_params common_chat_params_init_gemma4(const common_chat_template & t
 common_chat_params common_chat_params_init_gigachat_v3(const common_chat_template & tmpl, const autoparser::generation_params & inputs);
 
 common_chat_params common_chat_params_init_gpt_oss(const common_chat_template & tmpl, const autoparser::generation_params & inputs);
+
+common_chat_params common_chat_params_init_harmony_xml(const common_chat_template & tmpl, const autoparser::generation_params & inputs);
 
 common_chat_params common_chat_params_init_k2_horizon(const common_chat_template & tmpl, const autoparser::generation_params & inputs);
 
@@ -79,6 +80,7 @@ common_chat_params common_chat_params_init_minimax_m3(const common_chat_template
 common_chat_params common_chat_params_init_ministral_3(const common_chat_template & tmpl, const autoparser::generation_params & inputs);
 
 common_chat_params common_chat_params_init_muse_glimmer(const common_chat_template & tmpl, const autoparser::generation_params & inputs);
+common_chat_params common_chat_params_init_muse_spark(const common_chat_template & tmpl, const autoparser::generation_params & inputs);
 
 common_chat_params common_chat_params_init_qwen3_coder(const common_chat_template & tmpl, const autoparser::generation_params & inputs);
 

@@ -2,4 +2,6 @@
 
 #include "../fattn-tile.cuh"
 
+#if !defined(GGML_USE_HIP)
 DECL_FATTN_TILE_CASE(640, 512);
+#endif

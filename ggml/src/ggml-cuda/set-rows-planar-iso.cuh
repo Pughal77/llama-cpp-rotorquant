@@ -9,7 +9,7 @@
 
 #include "ggml-common.h"
 #include "planar-iso-constants.cuh"
-#include <cuda_fp16.h>
+#include "common.cuh"
 #include <cmath>
 
 // Init function from cpy-planar-iso.cu (still needed for cpy path)
