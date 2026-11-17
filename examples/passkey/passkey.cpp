@@ -80,7 +80,9 @@ int main(int argc, char ** argv) {
 
     llama_context_params ctx_params = common_context_params_to_llama(params);
 
-    ctx_params.n_ctx = llama_model_n_ctx_train(model)*n_grp + n_keep;
+    if (params.n_ctx <= 0) {
+        ctx_params.n_ctx = llama_model_n_ctx_train(model)*n_grp + n_keep;
+    }
 
     GGML_ASSERT(ctx_params.n_batch % n_grp == 0 && "n_batch must be divisible by n_grp");
 

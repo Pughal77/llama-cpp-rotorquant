@@ -392,7 +392,7 @@ You can download it from your Linux distro's package manager or from here: [ROCm
 
 - Using `CMake` for Linux (assuming a gfx1030-compatible AMD GPU):
   ```bash
-  HIPCXX="$(hipconfig -l)/clang" HIP_PATH="$(hipconfig -R)" \
+  HIPCXX="$(hipconfig -l)/clang++" HIP_PATH="$(hipconfig -R)" \
       cmake -S . -B build -DGGML_HIP=ON -DGPU_TARGETS=gfx1030 -DCMAKE_BUILD_TYPE=Release \
       && cmake --build build --config Release -- -j 16
   ```
@@ -408,11 +408,18 @@ You can download it from your Linux distro's package manager or from here: [ROCm
   command: `HIP_DEVICE_LIB_PATH=<directory-you-just-found>`, so something
   like:
   ```bash
-  HIPCXX="$(hipconfig -l)/clang" HIP_PATH="$(hipconfig -p)" \
+  HIPCXX="$(hipconfig -l)/clang++" HIP_PATH="$(hipconfig -p)" \
   HIP_DEVICE_LIB_PATH=<directory-you-just-found> \
       cmake -S . -B build -DGGML_HIP=ON -DGPU_TARGETS=gfx1030 -DCMAKE_BUILD_TYPE=Release \
       && cmake --build build -- -j 16
   ```
+
+  Note for Linux runtime: ROCm shared libraries (`libhipblas.so`, `librocblas.so`) reside in `/opt/rocm/lib`. If `/opt/rocm/lib` is not in your dynamic linker search path, set:
+  ```bash
+  export LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH
+  ```
+
+  For AMD RDNA GPU setup and troubleshooting details (including library paths and hardware shared memory limits), see [hip-rocm-fixes.md](backend/hip-rocm-fixes.md).
 
 - Using `CMake` for Windows (using x64 Native Tools Command Prompt for VS, and assuming a gfx1100-compatible AMD GPU):
   ```bash

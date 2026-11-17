@@ -1,0 +1,717 @@
+{
+  "f16": {
+    "type": "f16",
+    "bpw": 16.0,
+    "description": "Baseline (Uncompressed)",
+    "elapsed_sec": 54.46,
+    "speed": {
+      "pp512": 1264.88,
+      "pp2048": 1238.96,
+      "pp4096": 1198.49,
+      "tg128": 57.83
+    },
+    "fidelity": {
+      "mean_kld": null,
+      "rms_dp_pct": 0.001,
+      "top1_match_pct": 99.967,
+      "ppl_delta": 0.002675
+    },
+    "retrieval": {
+      "pass_rate_pct": 100.0,
+      "passed": 5,
+      "total": 5,
+      "details": [
+        {
+          "ctx": 4096,
+          "depth_pct": 20,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 27.04
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 50,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 26.91
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 80,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 27.14
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 25,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 38.6
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 75,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 38.62
+        }
+      ]
+    }
+  },
+  "f8_e4m3": {
+    "type": "f8_e4m3",
+    "bpw": 8.0,
+    "description": "FP8 Floating Point",
+    "elapsed_sec": 54.88,
+    "speed": {
+      "pp512": 1214.22,
+      "pp2048": 1220.26,
+      "pp4096": 1192.55,
+      "tg128": 57.69
+    },
+    "fidelity": {
+      "mean_kld": 0.001586,
+      "rms_dp_pct": 1.461,
+      "top1_match_pct": 98.175,
+      "ppl_delta": -0.008163
+    },
+    "retrieval": {
+      "pass_rate_pct": 100.0,
+      "passed": 5,
+      "total": 5,
+      "details": [
+        {
+          "ctx": 4096,
+          "depth_pct": 20,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 26.29
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 50,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 26.66
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 80,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 25.74
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 25,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 36.46
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 75,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 36.36
+        }
+      ]
+    }
+  },
+  "q8_0": {
+    "type": "q8_0",
+    "bpw": 8.5,
+    "description": "8-bit Standard Quant",
+    "elapsed_sec": 55.09,
+    "speed": {
+      "pp512": 1213.39,
+      "pp2048": 1218.88,
+      "pp4096": 1189.82,
+      "tg128": 57.13
+    },
+    "fidelity": {
+      "mean_kld": 0.000579,
+      "rms_dp_pct": 0.74,
+      "top1_match_pct": 98.892,
+      "ppl_delta": 0.002304
+    },
+    "retrieval": {
+      "pass_rate_pct": 100.0,
+      "passed": 5,
+      "total": 5,
+      "details": [
+        {
+          "ctx": 4096,
+          "depth_pct": 20,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 24.77
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 50,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 25.26
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 80,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 25.55
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 25,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 35.88
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 75,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 34.72
+        }
+      ]
+    }
+  },
+  "q4_0": {
+    "type": "q4_0",
+    "bpw": 4.5,
+    "description": "4-bit Standard Uniform",
+    "elapsed_sec": 55.56,
+    "speed": {
+      "pp512": 1255.86,
+      "pp2048": 1206.55,
+      "pp4096": 1191.16,
+      "tg128": 56.51
+    },
+    "fidelity": {
+      "mean_kld": 0.004581,
+      "rms_dp_pct": 2.36,
+      "top1_match_pct": 97.393,
+      "ppl_delta": 0.019992
+    },
+    "retrieval": {
+      "pass_rate_pct": 100.0,
+      "passed": 5,
+      "total": 5,
+      "details": [
+        {
+          "ctx": 4096,
+          "depth_pct": 20,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 24.61
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 50,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 23.81
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 80,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 24.51
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 25,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 29.77
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 75,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 30.03
+        }
+      ]
+    }
+  },
+  "turbo4": {
+    "type": "turbo4",
+    "bpw": 4.5,
+    "description": "4-bit TurboQuant (WHT)",
+    "elapsed_sec": 55.86,
+    "speed": {
+      "pp512": 1206.31,
+      "pp2048": 1214.0,
+      "pp4096": 1189.21,
+      "tg128": 56.98
+    },
+    "fidelity": {
+      "mean_kld": 0.009943,
+      "rms_dp_pct": 3.022,
+      "top1_match_pct": 96.057,
+      "ppl_delta": 0.047807
+    },
+    "retrieval": {
+      "pass_rate_pct": 100.0,
+      "passed": 5,
+      "total": 5,
+      "details": [
+        {
+          "ctx": 4096,
+          "depth_pct": 20,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 25.51
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 50,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 25.01
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 80,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 25.43
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 25,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 34.73
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 75,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 35.13
+        }
+      ]
+    }
+  },
+  "planar4": {
+    "type": "planar4",
+    "bpw": 4.5,
+    "description": "4-bit PlanarQuant (2D Givens)",
+    "elapsed_sec": 79.47,
+    "speed": {
+      "pp512": 1140.08,
+      "pp2048": 932.98,
+      "pp4096": 766.24,
+      "tg128": 55.47
+    },
+    "fidelity": {
+      "mean_kld": 0.041703,
+      "rms_dp_pct": 7.415,
+      "top1_match_pct": 91.952,
+      "ppl_delta": 0.122043
+    },
+    "retrieval": {
+      "pass_rate_pct": 100.0,
+      "passed": 5,
+      "total": 5,
+      "details": [
+        {
+          "ctx": 4096,
+          "depth_pct": 20,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 18.05
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 50,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 18.2
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 80,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 18.62
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 25,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 27.7
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 75,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 27.03
+        }
+      ]
+    }
+  },
+  "iso4": {
+    "type": "iso4",
+    "bpw": 4.5,
+    "description": "4-bit IsoQuant (4D Quaternion)",
+    "elapsed_sec": 80.06,
+    "speed": {
+      "pp512": 1142.4,
+      "pp2048": 924.36,
+      "pp4096": 762.14,
+      "tg128": 55.84
+    },
+    "fidelity": {
+      "mean_kld": 0.035252,
+      "rms_dp_pct": 6.985,
+      "top1_match_pct": 93.255,
+      "ppl_delta": 0.139257
+    },
+    "retrieval": {
+      "pass_rate_pct": 100.0,
+      "passed": 5,
+      "total": 5,
+      "details": [
+        {
+          "ctx": 4096,
+          "depth_pct": 20,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 18.69
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 50,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 18.67
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 80,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 18.52
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 25,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 27.18
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 75,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 27.37
+        }
+      ]
+    }
+  },
+  "turbo3": {
+    "type": "turbo3",
+    "bpw": 3.5,
+    "description": "3-bit TurboQuant (WHT)",
+    "elapsed_sec": 55.53,
+    "speed": {
+      "pp512": 1260.09,
+      "pp2048": 1225.74,
+      "pp4096": 1187.16,
+      "tg128": 56.75
+    },
+    "fidelity": {
+      "mean_kld": 0.017599,
+      "rms_dp_pct": 4.36,
+      "top1_match_pct": 94.396,
+      "ppl_delta": 0.07616
+    },
+    "retrieval": {
+      "pass_rate_pct": 100.0,
+      "passed": 5,
+      "total": 5,
+      "details": [
+        {
+          "ctx": 4096,
+          "depth_pct": 20,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 25.26
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 50,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 24.51
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 80,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 24.71
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 25,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 33.55
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 75,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 34.85
+        }
+      ]
+    }
+  },
+  "planar3": {
+    "type": "planar3",
+    "bpw": 3.5,
+    "description": "3-bit PlanarQuant (2D Givens)",
+    "elapsed_sec": 84.62,
+    "speed": {
+      "pp512": 1132.59,
+      "pp2048": 892.9,
+      "pp4096": 716.02,
+      "tg128": 54.7
+    },
+    "fidelity": {
+      "mean_kld": 0.040437,
+      "rms_dp_pct": 7.088,
+      "top1_match_pct": 92.31,
+      "ppl_delta": 0.132337
+    },
+    "retrieval": {
+      "pass_rate_pct": 100.0,
+      "passed": 5,
+      "total": 5,
+      "details": [
+        {
+          "ctx": 4096,
+          "depth_pct": 20,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 17.59
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 50,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 17.6
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 80,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 17.57
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 25,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 25.7
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 75,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 25.37
+        }
+      ]
+    }
+  },
+  "iso3": {
+    "type": "iso3",
+    "bpw": 3.5,
+    "description": "3-bit IsoQuant (4D Quaternion)",
+    "elapsed_sec": 80.8,
+    "speed": {
+      "pp512": 1141.22,
+      "pp2048": 919.15,
+      "pp4096": 754.88,
+      "tg128": 54.76
+    },
+    "fidelity": {
+      "mean_kld": 0.035036,
+      "rms_dp_pct": 6.832,
+      "top1_match_pct": 93.418,
+      "ppl_delta": 0.11882
+    },
+    "retrieval": {
+      "pass_rate_pct": 100.0,
+      "passed": 5,
+      "total": 5,
+      "details": [
+        {
+          "ctx": 4096,
+          "depth_pct": 20,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 18.14
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 50,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 17.93
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 80,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 17.97
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 25,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 26.1
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 75,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 26.94
+        }
+      ]
+    }
+  },
+  "turbo2": {
+    "type": "turbo2",
+    "bpw": 2.5,
+    "description": "2-bit TurboQuant (WHT)",
+    "elapsed_sec": 55.35,
+    "speed": {
+      "pp512": 1255.46,
+      "pp2048": 1222.13,
+      "pp4096": 1189.78,
+      "tg128": 56.94
+    },
+    "fidelity": {
+      "mean_kld": 0.063604,
+      "rms_dp_pct": 7.408,
+      "top1_match_pct": 90.29,
+      "ppl_delta": 0.336372
+    },
+    "retrieval": {
+      "pass_rate_pct": 100.0,
+      "passed": 5,
+      "total": 5,
+      "details": [
+        {
+          "ctx": 4096,
+          "depth_pct": 20,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 25.21
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 50,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 25.3
+        },
+        {
+          "ctx": 4096,
+          "depth_pct": 80,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 24.55
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 25,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 34.71
+        },
+        {
+          "ctx": 8192,
+          "depth_pct": 75,
+          "expected": "39384",
+          "got": "39384",
+          "success": true,
+          "speed_ts": 35.7
+        }
+      ]
+    }
+  }
+}

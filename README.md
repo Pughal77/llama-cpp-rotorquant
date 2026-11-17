@@ -80,11 +80,25 @@ llama serve -hf ggml-org/Qwen3.5-0.8B-GGUF
 - [Build on Android](docs/android.md)
 - [Multi-GPU usage](docs/multi-gpu.md)
 - [Performance troubleshooting](docs/development/token_generation_performance_tips.md)
+- [KV Cache Compression Analysis](docs/development/kv-cache-compression-analysis.md)
+- [TurboQuant & RotorQuant Merge](docs/development/turbo-rotor-quant-merge.md)
 - [GGML tips & tricks](https://github.com/ggml-org/llama.cpp/wiki/GGML-Tips-&-Tricks)
 - [XCFramework](docs/xcframework.md)
 - [Completions](docs/completions.md)
 - [Models](docs/models.md)
 - [Release process](docs/release.md)
+
+### KV Cache Compression (TurboQuant & RotorQuant)
+
+This fork incorporates advanced KV cache quantization techniques, including **TurboQuant** (randomized Walsh-Hadamard Transform), **RotorQuant** (2D Givens planar rotations and 4D quaternion isoclinic rotations), and deferred key quantization.
+
+Key empirical findings from hardware benchmarks on AMD ROCm (Radeon RX 6600):
+- **Space Reduction**: Compresses KV cache from 16.0 bpw (`f16`) down to 4.5 bpw (4-bit, 3.56x), 3.5 bpw (3-bit, 4.57x), and 2.5 bpw (2-bit `turbo2`, 6.40x).
+- **Fidelity & Retention**: `turbo3` achieves high logit fidelity ($D_{\text{KL}} = 0.0176$, 94.4% Top-1 greedy token match), outperforming 4-bit PlanarQuant and IsoQuant in mathematical fidelity while consuming 1 bit less per value.
+- **Long-Context Integrity**: 100% passkey retrieval accuracy across 4K and 8K context depths for all evaluated formats, including 2.5 bpw `turbo2`.
+- **Prefill Scaling**: TurboQuant sustains ~1190 t/s prefill throughput at 4K context, avoiding the ~35% prefill throughput penalty observed in fused Planar/Iso kernels.
+
+For full benchmark data, Pareto trade-off charts, and deployment recommendations, see [docs/development/kv-cache-compression-analysis.md](docs/development/kv-cache-compression-analysis.md).
 
 ## Contributing
 
